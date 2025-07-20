@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgriAssist – Voice & Vision Plant Helper</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f3f5f7;
+        margin: 0;
+        padding: 20px;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: auto;
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #2e7d32;
+      }
+      label {
+        font-weight: bold;
+        display: block;
+        margin-top: 15px;
+      }
+      button,
+      input[type="file"],
+      textarea {
+        margin-top: 10px;
+        padding: 10px;
+        width: 100%;
+        font-size: 16px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        background-color: #2e7d32;
+        color: white;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #1b5e20;
+      }
+      button:disabled {
+        background-color: #cccccc;
+      }
+      #response {
+        margin-top: 20px;
+        background: #e8f5e9;
+        padding: 15px;
+        border-left: 4px solid #66bb6a;
+        border-radius: 4px;
+      }
+      #transcript {
+        margin-top: 10px;
+        font-style: italic;
+        color: #666;
+      }
+      .status {
+        margin-top: 10px;
+        padding: 8px;
+        border-radius: 4px;
+        display: none;
+      }
+      .connecting {
+        background: #fff3e0;
+        border-left: 4px solid #ffa000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>AgriAssist</h1>
+      <p style="text-align: center; color: #666">
+        Your AI-powered plant health assistant
+      </p>
+
+      <!-- Connection Status -->
+      <div id="connectionStatus" class="status connecting">
+        Connecting to backend server...
+      </div>
+
+      <!-- Text Input Option -->
+      <label for="typedInput">💬 Type Your Question</label>
+      <textarea
+        id="typedInput"
+        rows="4"
+        placeholder="Ask something like: How do I treat yellow spots on maize leaves?"
+      ></textarea>
+
+      <!-- Image Upload -->
+      <label for="imageUpload">📸 Upload Plant Image (Optional)</label>
+      <input type="file" id="imageUpload" accept="image/*" />
+
+      <!-- Voice Input -->
+      <label for="voiceBtn">🎙️ Or Ask by Voice</label>
+      <button id="voiceBtn">🎤 Start Recording</button>
+      <p id="transcript">Voice input will appear here...</p>
+
+      <!-- Submit Button -->
+      <button id="submitBtn">🚀 Analyze</button>
+
+      <!-- AI Response Output -->
+      <div id="response" style="display: none"></div>
+
+      <!-- Add this after your Analyze button -->
+      <button id="clearBtn" style="background-color: #f44336; margin-top: 10px">
+        🧹 Clear Input
+      </button>
+    </div>
+
+    <script>
+      // Add this to your script section
+      document
+        .getElementById("clearBtn")
+        .addEventListener("click", function () {
+          // Clear text inputs
+          document.getElementById("typedInput").value = "";
+          transcript = "";
+          document.getElementById("transcript").textContent =
+            "Voice input will appear here...";
+
+          // Clear file input
+          document.getElementById("imageUpload").value = "";
+
+          // Hide/reset response
+          document.getElementById("response").style.display = "none";
+          document.getElementById("response").innerHTML = "";
+
+          // Reset microphone button if recording
+          if (window.recognition && window.recognition.abort) {
+            window.recognition.abort();
+          }
+          document.getElementById("voiceBtn").textContent =
+            "🎤 Start Recording";
+          document.getElementById("voiceBtn").disabled = false;
+
+          // Reset analyze button
+          document.getElementById("submitBtn").disabled = false;
+          document.getElementById("submitBtn").textContent = "🚀 Analyze";
+        });
+      let transcript = "";
+      const responseEl = document.getElementById("response");
+      const transcriptEl = document.getElementById("transcript");
+      const submitBtn = document.getElementById("submitBtn");
+      const voiceBtn = document.getElementById("voiceBtn");
+      const connectionStatus = document.getElementById("connectionStatus");
+
+      // Backend connection check
+      async function checkBackendConnection() {
+        try {
+          connectionStatus.style.display = "block";
+          const res = await fetch("http://127.0.0.1:5000/", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (res.ok) {
+            connectionStatus.style.display = "none";
+            return true;
+          }
+        } catch (error) {
+          console.error("Backend connection failed:", error);
+          connectionStatus.textContent =
+            "❌ Backend connection failed. Make sure the server is running.";
+          connectionStatus.style.backgroundColor = "#ffebee";
+          connectionStatus.style.borderLeft = "4px solid #f44336";
+          return false;
+        }
+      }
+
+      checkBackendConnection();
+
+      
+      voiceBtn.addEventListener("click", () => {
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+          alert(
+            "Your browser does not support Speech Recognition. Please use Chrome or Edge."
+          );
+          return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        voiceBtn.textContent = "Listening...";
+        voiceBtn.disabled = true;
+
+        recognition.start();
+
+        recognition.onresult = (event) => {
+          transcript = event.results[0][0].transcript;
+          transcriptEl.textContent = `🗣️ You said: "${transcript}"`;
+        };
+
+        recognition.onerror = (event) => {
+          transcriptEl.textContent = `❌ Error: ${event.error}`;
+        };
+
+        recognition.onend = () => {
+          voiceBtn.textContent = "🎤 Start Recording";
+          voiceBtn.disabled = false;
+        };
+      });
+
+      submitBtn.addEventListener("click", async () => {
+        const imageFile = document.getElementById("imageUpload").files[0];
+        const typedInput = document.getElementById("typedInput").value.trim();
+        const finalText = typedInput || transcript;
+
+        if (!finalText && !imageFile) {
+          alert("Please type a question, use voice input, or upload an image.");
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Analyzing...";
+        responseEl.style.display = "none";
+
+        const formData = new FormData();
+        if (finalText) formData.append("voice_text", finalText);
+        if (imageFile) formData.append("image", imageFile);
+
+        try {
+          const startTime = performance.now();
+          const res = await fetch("http://127.0.0.1:5000/analyze", {
+            method: "POST",
+            body: formData,
+          });
+
+          const responseTime = (performance.now() - startTime).toFixed(0);
+
+          if (!res.ok) {
+            throw new Error(`Server responded with ${res.status}`);
+          }
+
+          const data = await res.json();
+          responseEl.style.display = "block";
+          responseEl.innerHTML = `
+            <h3>🌱 AgriAssist Analysis</h3>
+            <p>${data.message.replace(/\n/g, "<br>")}</p>
+            ${
+              imageFile
+                ? '<img src="' +
+                  URL.createObjectURL(imageFile) +
+                  '" style="max-width: 100%; margin-top: 15px; border-radius: 4px;">'
+                : ""
+            }
+            <p class="response-meta"><small>Processed in ${responseTime}ms</small></p>
+        `;
+        } catch (error) {
+          console.error("Error:", error);
+          responseEl.style.display = "block";
+          responseEl.innerHTML = `
+            <h3>❌ Error</h3>
+            <p>${error.message}</p>
+            <p>Please try again later.</p>
+        `;
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "🚀 Analyze";
+        }
+      });
+    </script>
+  </body>
+</html>
